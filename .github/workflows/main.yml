@@ -1,62 +1,56 @@
+# .github/workflows/main.yml (または call-dify-bot.yml)
+
 name: 大阪弁Difyボット呼び出しテスト
 
-# このワークフローが実行されるタイミングを設定します
 on:
-  # 1. 手動実行を許可する (Actionsタブからポチッと実行できる)
   workflow_dispatch:
-
-  # 2. スケジュール実行 (例: 毎日 日本時間の午前9時に実行)
-  # cronの書式は UTC (協定世界時) で指定します。
-  # 日本時間 (JST = UTC+9) で午前9時は、UTCでは午前0時です。
-  # '* * * * *' は 左から 分, 時, 日, 月, 曜日 を表します。
-  # 以下の例は「毎日 UTCの0時0分 (日本時間の午前9時0分) に実行」
   schedule:
-    - cron: '0 0 * * *'
+    - cron: '0 0 * * *' # 日本時間の午前9時 (UTC 0時)
 
-# 実行するジョブ (一連の処理のまとまり) を定義します
 jobs:
-  # "call_dify_api_job" という名前のジョブを定義 (名前は任意)
   call_dify_api_job:
-    # このジョブを実行する仮想環境を指定 (最新のUbuntuを使用)
     runs-on: ubuntu-latest
-
-    # ジョブの中で実行するステップ (個々のコマンドやアクション) を定義
     steps:
-      # 1. ステップ名 (任意、ログに表示される)
       - name: Difyの大阪弁ボットにメッセージを送信
-        # 2. 実行するコマンド (複数行書く場合は | を使う)
         run: |
-          echo "Dify APIエンドポイントURL: ${{ secrets.DIFY_API_URL }}" # 確認用にURLをログに出力（本番では不要な場合も）
+          echo "Dify APIエンドポイントURL: ${{ secrets.DIFY_API_URL }}"
           echo "送信するメッセージ: 今日の調子どない？"
 
-          # curlコマンドを使ってDify APIにPOSTリクエストを送信
-          # -s: プログレスメーターを非表示 (silent)
-          # -S: エラーメッセージを表示
-          # -X POST: POSTメソッドを指定
-          # -H "Authorization: ...": 認証ヘッダー。APIキーはシークレットから取得
-          # -H "Content-Type: ...": 送信するデータがJSON形式であることを指定
-          # -d '{...}': 送信するJSONデータ (リクエストボディ)
-          # "${{ secrets.DIFY_API_URL }}": APIエンドポイントURLをシークレットから取得
+          # Dify APIに送信するリクエストボディを定義
+          # 提供されたサンプルに基づき、`query`をトップレベルに配置し、
+          # 不要な `inputs: {}` と `files` 配列を削除。
+          # `response_mode` は 'blocking' を使用します。
+          REQUEST_BODY=$(cat <<EOF
+          {
+            "query": "今日の調子どない？",
+            "response_mode": "blocking",
+            "conversation_id": "",
+            "user": "github-actions-hanzon-{{ github.run_id }}"
+          }
+          EOF
+          )
+
+          echo "送信するリクエストボディ:"
+          echo "$REQUEST_BODY"
+
           response=$(curl -sS -X POST \
             -H "Authorization: Bearer ${{ secrets.DIFY_API_KEY }}" \
             -H "Content-Type: application/json" \
-            -d '{
-              "inputs": {
-                "message": "今日の調子どない？"
-              },
-              "response_mode": "blocking",
-              "user": "github-actions-hanzon-{{ github.run_id }}"
-            }' \
+            -d "$REQUEST_BODY" \
             "${{ secrets.DIFY_API_URL }}")
 
-          # Difyからの応答をログに出力
           echo "Difyからの応答:"
           echo "$response"
 
-          # (応用) 応答が成功したか簡単なチェック (例: "answer"というキーが含まれているか)
+          # 応答JSONから "answer" キーの値（大阪弁の返事）を抽出して表示 (jqコマンドが必要)
+          # jqがインストールされていない環境を考慮し、より堅牢な方法としてgrepで確認
           if echo "$response" | grep -q '"answer"'; then
             echo "応答に 'answer' が含まれています。成功とみなします。"
+            # 必要であれば、jqを使ってanswerの値を具体的に抽出表示できます
+            # 例 (ubuntu-latestにはjqがプリインストールされています):
+            # osaka_answer=$(echo "$response" | jq -r '.answer')
+            # echo "大阪弁の返事: $osaka_answer"
           else
-            echo "応答に 'answer' が見つかりませんでした。エラーの可能性があります。"
-            # exit 1 # エラーとしてワークフローを失敗させる場合
+            echo "応答に 'answer' が見つかりませんでした。エラーの可能性があります。応答全体を確認してください。"
+            # exit 1 # 必要であればエラーとしてマーク
           fi
