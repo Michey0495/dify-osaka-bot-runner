@@ -5,7 +5,7 @@ name: 大阪弁Difyボット呼び出しテスト
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 0 * * *' # 日本時間の午前9時 (UTC 0時)
+    - cron: '0 * * * *' # 日本時間の午前9時 (UTC 0時)
 
 jobs:
   call_dify_api_job:
