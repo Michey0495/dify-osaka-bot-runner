@@ -26,6 +26,7 @@ jobs:
             "response_mode": "blocking",
             "conversation_id": "",
             "user": "github-actions-hanzon-{{ github.run_id }}"
+            "inputs": {}
           }
           EOF
           )
